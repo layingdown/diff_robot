@@ -1,0 +1,358 @@
+<?xml version="1.0"?>
+<!-- 
+  ============================================================
+  filename: diff_robot.urdf.xacro
+  function: diff_robot URDF discription
+  parameter: 轮距(L) = 0.30m, 轮半径(r) = 0.05m
+  ============================================================
+-->
+
+<!-- ============================================================= -->
+  <!-- 1. 建模参数    -->
+  <!-- ============================================================= -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="diff_robot">
+
+  <xacro:property name="base_width"   value="0.30" />   <!-- 轮距 L (m)  
+-->
+  <xacro:property name="wheel_radius" value="0.05" />   <!-- 轮半径 r (m) 
+-->
+  <xacro:property name="base_length"  value="0.25" />   <!-- 底盘长 (m)                    -->
+  <xacro:property name="base_height"  value="0.08" />   <!-- 底盘高 (m)                    -->
+  <xacro:property name="wheel_width"  value="0.03" />   <!-- 轮宽 (m)                      -->
+  <xacro:property name="caster_radius" value="0.015" /> <!-- 万向轮半径 (m)                -->
+
+  <!-- ============================================================= -->
+  <!-- 2. 材质定义（仅用于可视化）                      -->
+  <!-- ============================================================= -->
+  <material name="base_color">
+    <color rgba="0.2 0.5 0.9 1.0"/>   <!-- 亮蓝色底盘 -->
+  </material>
+  <material name="wheel_color">
+    <color rgba="0.1 0.1 0.1 1.0"/>   <!-- 黑色车轮 -->
+  </material>
+  <material name="caster_color">
+    <color rgba="0.8 0.2 0.2 1.0"/>   <!-- 红色万向轮 -->
+  </material>
+  <material name="sensor_color">
+    <color rgba="0.9 0.7 0.1 1.0"/>   <!-- 金色传感器 -->
+  </material>
+
+  <!-- ============================================================= -->
+  <!-- 3. base_link                                              -->
+  <!--    inertial parameter: mass = 1.0kg, uniform cuboid       -->
+  <!-- ============================================================= -->
+<link name="base_link">
+  <visual>
+    <geometry>
+      <box size="${base_length} ${base_width} ${base_height}"/>
+    </geometry>
+    <origin xyz="0 0 ${base_height/2}" rpy="0 0 0"/>
+    <material name="base_color"/>
+  </visual>
+  <collision>
+    <geometry>
+      <box size="${base_length} ${base_width} ${base_height}"/>
+    </geometry>
+    <origin xyz="0 0 ${base_height/2}" rpy="0 0 0"/>
+  </collision>
+  <inertial>
+    <mass value="1.0"/>
+    <inertia ixx="0.01" ixy="0.0" ixz="0.0"
+             iyy="0.01" iyz="0.0"
+             izz="0.02"/>
+  </inertial>
+</link>
+
+  <!-- ============================================================= -->
+  <!-- 4. left_wheel_link                                         -->
+  <!--    车轮是圆柱体，绕 Y 轴旋转                                  -->
+  <!-- ============================================================= -->
+  <link name="left_wheel_link">
+    <visual>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+      <material name="wheel_color"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+    </collision>
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="0.0001" ixy="0.0" ixz="0.0"
+               iyy="0.0001" iyz="0.0"
+               izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <!-- 左轮关节: 连续旋转 (continuous)，绕 Y 轴旋转                   -->
+  <!-- 位置: 底盘左侧 (x=0, y=+base_width/2, z=-wheel_radius)       -->
+  <!--        z 向下偏移使得车轮底部刚好接触地面                     -->
+  <joint name="left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="left_wheel_link"/>
+    <origin xyz="0 ${base_width/2} ${-wheel_radius}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>   <!-- 绕 Y 轴旋转 -->
+    <limit effort="10" velocity="10"/>
+  </joint>
+
+  <!-- ============================================================= -->
+  <!-- 5. 右轮 (right_wheel_link) - 完全对称                         -->
+  <!-- ============================================================= -->
+  <link name="right_wheel_link">
+    <visual>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+      <material name="wheel_color"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+    </collision>
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="0.0001" ixy="0.0" ixz="0.0"
+               iyy="0.0001" iyz="0.0"
+               izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <!-- 右轮关节: 位置在底盘右侧 (x=0, y=-base_width/2, z=-wheel_radius) -->
+  <joint name="right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="right_wheel_link"/>
+    <origin xyz="0 ${-base_width/2} ${-wheel_radius}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="10" velocity="10"/>
+  </joint>
+
+  <!-- ============================================================= -->
+  <!-- 6. 万向轮 (前后各一个，支撑平衡，无动力)                    -->
+  <!--    使用固定关节 (fixed)，因为不需要主动旋转建模               -->
+  <!-- ============================================================= -->
+  <link name="front_caster_link">
+    <visual>
+      <geometry>
+        <sphere radius="${caster_radius}"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="caster_color"/>
+    </visual>
+    <collision>
+      <geometry>
+        <sphere radius="${caster_radius}"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </collision>
+    <inertial>
+      <mass value="0.02"/>
+      <inertia ixx="0.00001" ixy="0.0" ixz="0.0"
+               iyy="0.00001" iyz="0.0"
+               izz="0.00001"/>
+    </inertial>
+  </link>
+
+  <joint name="front_caster_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="front_caster_link"/>
+    <origin xyz="${base_length/2 + 0.02} 0 ${-wheel_radius}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="rear_caster_link">
+    <visual>
+      <geometry>
+        <sphere radius="${caster_radius}"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="caster_color"/>
+    </visual>
+    <collision>
+      <geometry>
+        <sphere radius="${caster_radius}"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </collision>
+    <inertial>
+      <mass value="0.02"/>
+      <inertia ixx="0.00001" ixy="0.0" ixz="0.0"
+               iyy="0.00001" iyz="0.0"
+               izz="0.00001"/>
+    </inertial>
+  </link>
+
+  <joint name="rear_caster_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="rear_caster_link"/>
+    <origin xyz="${-base_length/2 - 0.02} 0 ${-wheel_radius}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============================================================= -->
+  <!-- 7. 激光雷达 (laser_link) - 安装在底盘顶部                    -->
+  <!-- ============================================================= -->
+  <link name="laser_link">
+    <visual>
+      <geometry>
+        <cylinder radius="0.04" length="0.02"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="sensor_color"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="0.04" length="0.02"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </collision>
+    <inertial>
+      <mass value="0.03"/>
+      <inertia ixx="0.00001" ixy="0.0" ixz="0.0"
+               iyy="0.00001" iyz="0.0"
+               izz="0.00001"/>
+    </inertial>
+  </link>
+
+  <joint name="laser_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="laser_link"/>
+    <origin xyz="0 0 ${base_height/2 + 0.02}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============================================================= -->
+  <!-- 8. IMU (imu_link) - 惯性测量单元                             -->
+  <!-- ============================================================= -->
+  <link name="imu_link">
+    <visual>
+      <geometry>
+        <box size="0.03 0.03 0.02"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="sensor_color"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.03 0.03 0.02"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </collision>
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="0.000001" ixy="0.0" ixz="0.0"
+               iyy="0.000001" iyz="0.0"
+               izz="0.000001"/>
+    </inertial>
+  </link>
+
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="0 0 ${base_height/2}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============================================================= -->
+  <!-- 9. Gazebo 插件                                            -->
+  <!--    - 差速驱动插件：订阅 /cmd_vel，控制车轮转动，发布里程计    -->
+  <!--    - 激光雷达插件：发布 /scan 话题                           -->
+  <!--    - IMU 插件：发布 /imu/data 话题                          -->
+  <!-- ============================================================= -->
+
+  <!-- 9-a: Gazebo 差速驱动插件 -->
+  <!-- 
+    这个插件做三件事:
+    1. 订阅 /cmd_vel 话题，接收线速度和角速度指令
+    2. 根据轮距 L 和轮半径 r 将 v/ω 转换为左右轮速度
+    3. 驱动左右轮转动，并发布 /odom 里程计话题
+  -->
+<gazebo>
+<plugin name="gz::sim::systems::DiffDrive" filename="libgz-sim-diff-drive-system.so">
+    <left_joint>left_wheel_joint</left_joint>
+    <right_joint>right_wheel_joint</right_joint>
+    <wheel_separation>${base_width}</wheel_separation>
+    <wheel_diameter>${2 * wheel_radius}</wheel_diameter>
+    <max_wheel_torque>10</max_wheel_torque>
+    <max_wheel_acceleration>1.0</max_wheel_acceleration>
+    <topic>cmd_vel</topic>
+    <odom_topic>odom</odom_topic>
+    <odom_frame>odom</odom_frame>
+    <robot_base_frame>base_link</robot_base_frame>
+    <publish_odom>true</publish_odom>
+    <publish_odom_tf>true</publish_odom_tf>
+  </plugin>
+</gazebo>
+
+  <!-- 9-b: Gazebo 激光雷达插件 -->
+<gazebo reference="laser_link">
+  <sensor type="gpu_ray" name="laser">
+    <pose>0 0 0 0 0 0</pose>
+    <visualize>true</visualize>
+    <update_rate>10</update_rate>
+    <ray>
+      <scan>
+        <horizontal>
+          <samples>360</samples>
+          <resolution>1</resolution>
+          <min_angle>-3.14</min_angle>
+          <max_angle>3.14</max_angle>
+        </horizontal>
+      </scan>
+      <range>
+        <min>0.1</min>
+        <max>10.0</max>
+        <resolution>0.01</resolution>
+      </range>
+      <!-- 新增激光测距噪声 -->
+      <noise>
+        <type>gaussian</type>
+        <mean>0.0</mean>
+        <stddev>0.02</stddev>   <!-- 2cm 测距误差 -->
+      </noise>
+    </ray>
+    <topic>scan</topic>
+    <plugin name="gz::sim::systems::Sensors" filename="libgz-sim-sensors-system.so">
+      <topic>scan</topic>
+    </plugin>
+  </sensor>
+</gazebo>
+
+  <!-- 9-c: Gazebo IMU 插件 -->
+<gazebo reference="imu_link">
+  <sensor type="imu" name="imu_sensor">
+    <pose>0 0 0 0 0 0</pose>
+    <visualize>false</visualize>
+    <update_rate>50</update_rate>
+    
+    <!--adding noise-->
+    <imu>
+      <noise>
+        <!-- 加速度噪声（高斯白噪声） -->
+        <accel>
+          <mean>0.0</mean>
+          <stddev>0.02</stddev>   <!-- 0.02 m/s²，较真实 IMU 略小 -->
+        </accel>
+        <!-- 角速度噪声（高斯白噪声） -->
+        <angular_velocity>
+          <mean>0.0</mean>
+          <stddev>0.01</stddev>   <!-- 0.01 rad/s -->
+        </angular_velocity>
+        <!-- 姿态噪声（影响积分后的角度） -->
+        <orientation>
+          <mean>0.0</mean>
+          <stddev>0.005</stddev>  <!-- 0.005 rad，约 0.3° -->
+        </orientation>
+      </noise>
+    </imu>
+    
+    <plugin name="gz::sim::systems::Imu" filename="libgz-sim-imu-system.so">
+      <topic>imu/data</topic>
+    </plugin>
+  </sensor>
+</gazebo>
+</robot>
+<!-- ========== 文件结束 ========== -->
