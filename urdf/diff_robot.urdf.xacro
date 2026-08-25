@@ -88,6 +88,12 @@
                izz="0.0001"/>
     </inertial>
   </link>
+ <!--加摩擦力-->
+  <gazebo reference="left_wheel_link">
+  <mu1>1.0</mu1>
+  <mu2>1.0</mu2>
+  <material>Gazebo/Black</material>
+</gazebo>
 
   <!-- 左轮关节: 连续旋转 (continuous)，绕 Y 轴旋转                   -->
   <!-- 位置: 底盘左侧 (x=0, y=+base_width/2, z=-wheel_radius)       -->
@@ -97,7 +103,7 @@
     <child link="left_wheel_link"/>
     <origin xyz="0 ${base_width/2} ${-wheel_radius}" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>   <!-- 绕 Y 轴旋转 -->
-    <limit effort="10" velocity="10"/>
+    <limit effort="50" velocity="20"/>
   </joint>
 
   <!-- ============================================================= -->
@@ -124,6 +130,13 @@
                izz="0.0001"/>
     </inertial>
   </link>
+  
+   <!--加摩擦力-->
+<gazebo reference="right_wheel_link">
+  <mu1>1.0</mu1>
+  <mu2>1.0</mu2>
+  <material>Gazebo/Black</material>
+</gazebo>
 
   <!-- 右轮关节: 位置在底盘右侧 (x=0, y=-base_width/2, z=-wheel_radius) -->
   <joint name="right_wheel_joint" type="continuous">
@@ -131,7 +144,7 @@
     <child link="right_wheel_link"/>
     <origin xyz="0 ${-base_width/2} ${-wheel_radius}" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
-    <limit effort="10" velocity="10"/>
+    <limit effort="50" velocity="20"/>
   </joint>
 
   <!-- ============================================================= -->
@@ -207,7 +220,7 @@
     </visual>
     <collision>
       <geometry>
-        <cylinder radius="0.04" length="0.02"/>
+        <cylinder radius="0.04" length="0.12"/>
       </geometry>
       <origin xyz="0 0 0" rpy="0 0 0"/>
     </collision>
@@ -218,11 +231,15 @@
                izz="0.00001"/>
     </inertial>
   </link>
+<gazebo reference="laser_joint">
+  <preserveFixedJoint>true</preserveFixedJoint>
+</gazebo>
+
 
   <joint name="laser_joint" type="fixed">
     <parent link="base_link"/>
     <child link="laser_link"/>
-    <origin xyz="0 0 ${base_height/2 + 0.02}" rpy="0 0 0"/>
+    <origin xyz="0 0 ${base_height + 0.02}" rpy="0 0 0"/>
   </joint>
 
   <!-- ============================================================= -->
@@ -255,7 +272,9 @@
     <child link="imu_link"/>
     <origin xyz="0 0 ${base_height/2}" rpy="0 0 0"/>
   </joint>
-
+<gazebo reference="imu_joint">
+  <preserveFixedJoint>true</preserveFixedJoint>
+</gazebo>
   <!-- ============================================================= -->
   <!-- 9. Gazebo 插件                                            -->
   <!--    - 差速驱动插件：订阅 /cmd_vel，控制车轮转动，发布里程计    -->
@@ -276,8 +295,8 @@
     <right_joint>right_wheel_joint</right_joint>
     <wheel_separation>${base_width}</wheel_separation>
     <wheel_diameter>${2 * wheel_radius}</wheel_diameter>
-    <max_wheel_torque>10</max_wheel_torque>
-    <max_wheel_acceleration>1.0</max_wheel_acceleration>
+    <max_wheel_torque>50</max_wheel_torque>
+    <max_wheel_acceleration>5.0</max_wheel_acceleration>
     <topic>cmd_vel</topic>
     <odom_topic>odom</odom_topic>
     <odom_frame>odom</odom_frame>
@@ -286,73 +305,72 @@
     <publish_odom_tf>true</publish_odom_tf>
   </plugin>
 </gazebo>
-
-  <!-- 9-b: Gazebo 激光雷达插件 -->
+<!-- 反馈轮子角度给/joint_states -->
+<gazebo>
+  <plugin filename="libgz-sim-joint-state-publisher-system.so"
+          name="gz::sim::systems::JointStatePublisher">
+    <joint_name>left_wheel_joint</joint_name>
+    <joint_name>right_wheel_joint</joint_name>
+  </plugin>
+</gazebo>
+<!-- 9-b: Gazebo 激光雷达插件 -->
 <gazebo reference="laser_link">
-  <sensor type="gpu_ray" name="laser">
+  <sensor type="gpu_lidar" name="laser">
     <pose>0 0 0 0 0 0</pose>
     <visualize>true</visualize>
     <update_rate>10</update_rate>
-    <ray>
+    <topic>scan</topic>
+    <gz_frame_id>laser_link</gz_frame_id>
+    <lidar>
       <scan>
         <horizontal>
-          <samples>360</samples>
-          <resolution>1</resolution>
-          <min_angle>-3.14</min_angle>
-          <max_angle>3.14</max_angle>
-        </horizontal>
-      </scan>
-      <range>
-        <min>0.1</min>
-        <max>10.0</max>
-        <resolution>0.01</resolution>
-      </range>
-      <!-- 新增激光测距噪声 -->
-      <noise>
-        <type>gaussian</type>
-        <mean>0.0</mean>
-        <stddev>0.02</stddev>   <!-- 2cm 测距误差 -->
-      </noise>
-    </ray>
-    <topic>scan</topic>
-    <plugin name="gz::sim::systems::Sensors" filename="libgz-sim-sensors-system.so">
-      <topic>scan</topic>
-    </plugin>
+         <samples>360</samples>
+         <resolution>1</resolution>
+         <min_angle>-3.14</min_angle>
+        <max_angle>3.14</max_angle>
+       </horizontal>
+       <vertical>
+         <samples>1</samples>
+         <resolution>1</resolution>
+         <min_angle>0</min_angle>
+         <max_angle>0</max_angle>
+       </vertical>
+  </scan>
+  <range>
+    <min>0.1</min>
+    <max>10.0</max>
+    <resolution>0.01</resolution>
+  </range>
+  <noise>
+    <type>gaussian</type>
+    <mean>0.0</mean>
+    <stddev>0.02</stddev>
+  </noise>
+</lidar>
   </sensor>
 </gazebo>
 
   <!-- 9-c: Gazebo IMU 插件 -->
 <gazebo reference="imu_link">
   <sensor type="imu" name="imu_sensor">
-    <pose>0 0 0 0 0 0</pose>
-    <visualize>false</visualize>
-    <update_rate>50</update_rate>
-    
-    <!--adding noise-->
-    <imu>
-      <noise>
-        <!-- 加速度噪声（高斯白噪声） -->
-        <accel>
-          <mean>0.0</mean>
-          <stddev>0.02</stddev>   <!-- 0.02 m/s²，较真实 IMU 略小 -->
-        </accel>
-        <!-- 角速度噪声（高斯白噪声） -->
-        <angular_velocity>
-          <mean>0.0</mean>
-          <stddev>0.01</stddev>   <!-- 0.01 rad/s -->
-        </angular_velocity>
-        <!-- 姿态噪声（影响积分后的角度） -->
-        <orientation>
-          <mean>0.0</mean>
-          <stddev>0.005</stddev>  <!-- 0.005 rad，约 0.3° -->
-        </orientation>
-      </noise>
-    </imu>
-    
-    <plugin name="gz::sim::systems::Imu" filename="libgz-sim-imu-system.so">
-      <topic>imu/data</topic>
-    </plugin>
-  </sensor>
+  <pose>0 0 0 0 0 0</pose>
+  <visualize>false</visualize>
+  <update_rate>50</update_rate>
+  <topic>imu/data</topic>
+  <gz_frame_id>imu_link</gz_frame_id>
+  <imu>
+    <angular_velocity>
+      <x><noise type="gaussian"><mean>0.0</mean><stddev>0.01</stddev></noise></x>
+      <y><noise type="gaussian"><mean>0.0</mean><stddev>0.01</stddev></noise></y>
+      <z><noise type="gaussian"><mean>0.0</mean><stddev>0.01</stddev></noise></z>
+    </angular_velocity>
+    <linear_acceleration>
+      <x><noise type="gaussian"><mean>0.0</mean><stddev>0.02</stddev></noise></x>
+      <y><noise type="gaussian"><mean>0.0</mean><stddev>0.02</stddev></noise></y>
+      <z><noise type="gaussian"><mean>0.0</mean><stddev>0.02</stddev></noise></z>
+    </linear_acceleration>
+  </imu>
+</sensor>
 </gazebo>
 </robot>
 <!-- ========== 文件结束 ========== -->

@@ -1,32 +1,41 @@
 <?xml version="1.0" ?>
 <sdf version="1.6">
   <world name="default">
-    <!-- 地面：使用 <static> 子标签 -->
-    <model name="ground_plane">
-      <static>true</static>
-      <link name="link">
-        <collision name="collision">
-          <geometry>
-            <plane>
-              <normal>0 0 1</normal>
-              <size>20 20</size>
-            </plane>
-          </geometry>
-        </collision>
-        <visual name="visual">
-          <geometry>
-            <plane>
-              <normal>0 0 1</normal>
-              <size>20 20</size>
-            </plane>
-          </geometry>
-          <material>
-            <ambient>0.7 0.7 0.7 1</ambient>
-            <diffuse>0.7 0.7 0.7 1</diffuse>
-          </material>
-        </visual>
-      </link>
-    </model>
+
+<!-- 地面：使用 <static> 子标签 -->
+<model name="ground_plane">
+  <static>true</static>
+  <link name="link">
+    <collision name="collision">
+      <geometry>
+        <plane>
+          <normal>0 0 1</normal>
+          <size>20 20</size>
+        </plane>
+      </geometry>
+      <surface>
+        <friction>
+          <ode>
+            <mu>1.0</mu>
+            <mu2>1.0</mu2>
+          </ode>
+        </friction>
+      </surface>
+    </collision>
+    <visual name="visual">
+      <geometry>
+        <plane>
+          <normal>0 0 1</normal>
+          <size>20 20</size>
+        </plane>
+      </geometry>
+      <material>
+        <ambient>0.7 0.7 0.7 1</ambient>
+        <diffuse>0.7 0.7 0.7 1</diffuse>
+      </material>
+    </visual>
+  </link>
+</model>
 
     <!-- 光源 -->
     <light name="sun" type="directional">
@@ -47,5 +56,16 @@
     <physics name="default_physics" type="dart">
       <gravity>0 0 -9.81</gravity>
     </physics>
+    
+
+    <!-- 系统插件：把所有需要的都列全 -->
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"></plugin>
+    <plugin filename="gz-sim-user-commands-system"  name="gz::sim::systems::UserCommands"></plugin>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"></plugin>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"></plugin>
+    
   </world>
 </sdf>

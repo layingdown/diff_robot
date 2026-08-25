@@ -20,6 +20,8 @@ setup(
         (os.path.join('share', package_name, 'worlds'), glob('worlds/*.world')),
         # 安装 config 文件（如果有 .yaml 或 .yaml）
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
+        # rviz文件
+        (os.path.join('share', package_name, 'rviz'), glob('rviz/*.rviz')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -34,6 +36,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'odom_to_tf = diff_robot_description.odom_to_tf:main',
+            'injector_node = diff_robot_description.injector_node:main',
         ],
     },
 )
