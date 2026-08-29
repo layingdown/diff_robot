@@ -1,0 +1,186 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <world name="slam_test_world">
+
+<!--         下面这五个必须显式列出来，否则物理引擎/传感器/建图都会失效 -->
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"></plugin>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"></plugin>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"></plugin>
+    <plugin filename="gz-sim-imu-system" 
+name="gz::sim::systems::Imu"></plugin>
+
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- 地面：浅灰色，不透明（作为背景基准面） -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal></plane></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+          <material>
+            <ambient>0.75 0.75 0.75 1</ambient>
+            <diffuse>0.75 0.75 0.75 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ===== 外墙：10m x 8m 矩形房间，墙高1m能保证被雷达扫到 =====
+         暖橙色 + 半透明，方便透过墙看到内部机器人位置 -->
+    <model name="wall_north"><static>true</static><pose>0 4 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>10 0.15 1</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>10 0.15 1</size></box></geometry>
+          <material>
+            <ambient>0.85 0.5 0.2 1</ambient>
+            <diffuse>0.85 0.5 0.2 0.55</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+          <transparency>0.45</transparency>
+        </visual>
+      </link>
+    </model>
+    <model name="wall_south"><static>true</static><pose>0 -4 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>10 0.15 1</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>10 0.15 1</size></box></geometry>
+          <material>
+            <ambient>0.85 0.5 0.2 1</ambient>
+            <diffuse>0.85 0.5 0.2 0.55</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+          <transparency>0.45</transparency>
+        </visual>
+      </link>
+    </model>
+    <model name="wall_east"><static>true</static><pose>5 0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.15 8 1</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.15 8 1</size></box></geometry>
+          <material>
+            <ambient>0.85 0.5 0.2 1</ambient>
+            <diffuse>0.85 0.5 0.2 0.55</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+          <transparency>0.45</transparency>
+        </visual>
+      </link>
+    </model>
+    <model name="wall_west"><static>true</static><pose>-5 0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.15 8 1</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.15 8 1</size></box></geometry>
+          <material>
+            <ambient>0.85 0.5 0.2 1</ambient>
+            <diffuse>0.85 0.5 0.2 0.55</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+          <transparency>0.45</transparency>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ===== 中央"孤岛"：逼机器人绕圈走，专门用来测试回环检测 =====
+         蓝紫色 + 半透明，和外墙区分开 -->
+    <model name="center_island"><static>true</static><pose>-1 1.5 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>2 2 1</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>2 2 1</size></box></geometry>
+          <material>
+            <ambient>0.35 0.35 0.75 1</ambient>
+            <diffuse>0.35 0.35 0.75 0.5</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+          <transparency>0.5</transparency>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ===== 窄走廊：两段平行墙夹出约1.2m宽通道，测试 DWA在狭窄空间的行为 =====
+         青绿色 + 半透明，和外墙/孤岛区分开 -->
+    <model name="corridor_wall_a"><static>true</static><pose>3 0.65 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>2.5 0.15 1</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>2.5 0.15 1</size></box></geometry>
+          <material>
+            <ambient>0.2 0.65 0.6 1</ambient>
+            <diffuse>0.2 0.65 0.6 0.55</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+          <transparency>0.45</transparency>
+        </visual>
+      </link>
+    </model>
+    <model name="corridor_wall_b"><static>true</static><pose>3 -0.65 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>2.5 0.15 1</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>2.5 0.15 1</size></box></geometry>
+          <material>
+            <ambient>0.2 0.65 0.6 1</ambient>
+            <diffuse>0.2 0.65 0.6 0.55</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+          <transparency>0.45</transparency>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ===== 零散障碍物：用于Nav2局部避障测试 =====
+         保持不透明、高饱和度，作为视觉焦点障碍物，不与墙体透明混淆 -->
+    <model name="box_obstacle_1"><static>true</static><pose>2 -2.8 0.25 0 0 0.3</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.5 0.5 0.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.5 0.5 0.5</size></box></geometry>
+          <material>
+            <ambient>0.85 0.2 0.2 1</ambient>
+            <diffuse>0.85 0.2 0.2 1</diffuse>
+            <specular>0.3 0.3 0.3 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="cylinder_obstacle_1"><static>true</static><pose>-3 -2.5 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.3</radius><length>1</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.3</radius><length>1</length></cylinder></geometry>
+          <material>
+            <ambient>0.2 0.7 0.2 1</ambient>
+            <diffuse>0.2 0.7 0.2 1</diffuse>
+            <specular>0.3 0.3 0.3 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="cylinder_obstacle_2"><static>true</static><pose>3.5 2.8 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.2</radius><length>1</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.2</radius><length>1</length></cylinder></geometry>
+          <material>
+            <ambient>0.2 0.7 0.2 1</ambient>
+            <diffuse>0.2 0.7 0.2 1</diffuse>
+            <specular>0.3 0.3 0.3 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>
