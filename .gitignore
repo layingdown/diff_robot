@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# built binaries / C++ artifacts left inside package trees
+astar_benchmark
+*.o
+*.so
+
+# colcon workspace build outputs (normally siblings of src/, listed defensively)
+/build/
+/install/
+/log/

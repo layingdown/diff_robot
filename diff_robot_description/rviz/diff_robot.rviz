@@ -148,7 +148,13 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: base_link
+    # 注意：原来这里是 base_link——整个画面以机器人自身为中心绘制，
+    # 会导致哪怕是完全静止的真实障碍物，看起来也像是"焊在机器人身
+    # 上跟着走"（因为坐标系原点本身就在机器人上，跟着它一起移动/
+    # 转向）。SLAM/建图场景应该用 map（或者 slam_toolbox 激活前用
+    # odom），让障碍物在画面里保持在世界坐标系的固定位置，机器人在
+    # 里面移动，这样才能看出哪些是真实静止的墙、哪些是真的有问题。
+    Fixed Frame: map
     Frame Rate: 30
   Name: root
   Tools:
@@ -207,7 +213,11 @@ Visualization Manager:
       Name: Current View
       Near Clip Distance: 0.009999999776482582
       Pitch: 0.9953981637954712
-      Target Frame: <Fixed Frame>
+      # Target Frame 单独指定成 base_link（不再跟着 Fixed Frame 走）：
+      # 这样即使上面 Global Options 的 Fixed Frame 改成了 map（数据用
+      # 世界坐标系画，墙不会跟着机器人跑），相机视角依然会跟着机器人
+      # 移动，不用手动一直拖画面。
+      Target Frame: base_link
       Value: Orbit (rviz)
       Yaw: 0.6703994274139404
     Saved: ~

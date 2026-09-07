@@ -1,0 +1,22 @@
+pure_pursuit_controller:
+  ros__parameters:
+    use_sim_time: true
+    odom_topic: /odometry/filtered   # 用 EKF 融合后的里程计，比原始 /odom 更稳
+    control_rate_hz: 20.0
+
+    # ---- 前视距离：Pure Pursuit 最核心的调参项 ----
+    # 来自 scripts/tune_and_compare.py 的 lookahead 扫描结果（见 docs/tuning_log.md）：
+    # 越小 RMSE 越低但越接近纯几何跟踪、对里程计噪声更敏感；越大越平滑（jerk 越低）
+    # 但截弯（cutting corners）更明显。0.5~0.6m 是精度和平顺性的折中点。
+    lookahead_distance: 0.55
+    min_lookahead: 0.3
+    max_lookahead: 1.5
+
+    cruise_linear_vel: 0.5
+    max_linear_vel: 1.0
+    max_angular_vel: 1.8
+    goal_tolerance: 0.10
+
+    # 曲率越大越减速：数值越大，过弯降速越明显，越不容易在门口/拐角处震荡
+    curvature_slowdown_gain: 1.4
+    decel_radius: 0.6

@@ -211,19 +211,30 @@
   <!-- 7. 激光雷达 (laser_link) - 安装在底盘顶部                    -->
   <!-- ============================================================= -->
   <link name="laser_link">
+    <!-- 注意：visual 的 origin z 故意写成 -0.01（半个圆柱高度），让
+         外壳整体"挂"在 laser_joint 原点下方、上表面正好贴着原点，
+         而不是像最初那样以原点为中心上下各伸出一半。
+         原因（上一次的判断是错的，这里更正）：gz-sim 的 GPU 雷达
+         （GpuLidarSensor）底层是靠 Ogre2 渲染场景做深度检测的，它
+         "看到"的是 <visual> 渲染出来的网格，不是物理引擎的
+         <collision> 碰撞体——上一版只删掉 <collision> 完全没用，
+         因为雷达根本没拿它判断遮挡。真正挡住雷达自己的，是这个
+         <visual> 外壳本身：外壳以传感器射线原点为中心上下各伸出
+         0.01m，射线发出点正好在这个实体网格内部，导致雷达一直
+         "看见"自己的外壳，报出一个刚性焊在机器人身上、随它一起移
+         动的假障碍物，实测确实把它画进了 SLAM 地图，沿着机器人走
+         过的路径到处留下斜线痕迹，污染建图结果。现在把外壳挪到射
+         线原点正下方（不再包住原点），射线就不会一出来就扎进自己
+         的外壳里了。不再单独保留 <collision>：这种小传感器外壳没
+         必要有自己的碰撞体，结构碰撞已经由主底盘的 collision box
+         承担。 -->
     <visual>
       <geometry>
         <cylinder radius="0.04" length="0.02"/>
       </geometry>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <origin xyz="0 0 -0.01" rpy="0 0 0"/>
       <material name="sensor_color"/>
     </visual>
-    <collision>
-      <geometry>
-        <cylinder radius="0.04" length="0.12"/>
-      </geometry>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
-    </collision>
     <inertial>
       <mass value="0.03"/>
       <inertia ixx="0.00001" ixy="0.0" ixz="0.0"
@@ -299,8 +310,20 @@
     <max_wheel_acceleration>5.0</max_wheel_acceleration>
     <topic>cmd_vel</topic>
     <odom_topic>odom</odom_topic>
-    <odom_frame>odom</odom_frame>
-    <robot_base_frame>base_link</robot_base_frame>
+    <!-- 注意：gz-sim 的 DiffDrive 插件实际认的参数名是 frame_id /
+         child_frame_id，不是 odom_frame / robot_base_frame（那是老
+         gazebo_ros_diff_drive 插件的参数名，抄错了）。用错参数名的
+         后果是这两个标签被静默忽略，插件退回默认值，给 odom 话题的
+         frame_id/child_frame_id 自动加上机器人名字前缀，变成
+         "diff_robot/odom"/"diff_robot/base_link"，跟 ekf.yaml 里配置
+         的 "odom"/"base_link" 对不上，导致 EKF 找不到对应的 TF、把
+         位置观测整个丢掉——表现为 /odometry/filtered 的 position 永
+         远卡在 (0,0,0)、协方差越滚越大，进而导致 SLAM 建图整个乱掉
+         （所有帧都被当成在同一个点、只是朝向不同，地图变成放射状）。
+         这里改成正确的参数名，让 /odom 直接发布成 "odom"/"base_link"，
+         和系统里其它地方保持一致。 -->
+    <frame_id>odom</frame_id>
+    <child_frame_id>base_link</child_frame_id>
     <publish_odom>true</publish_odom>
     <publish_odom_tf>true</publish_odom_tf>
   </plugin>
@@ -314,6 +337,18 @@
   </plugin>
 </gazebo>
 <!-- 9-b: Gazebo 激光雷达插件 -->
+<!-- 注意：必须用 "gpu_lidar"，不能用 "lidar"（CPU 版）。
+     实测过：这台机器的 Gazebo Sim v8.11.0 根本不支持 "lidar" 这个类型，
+     日志会报 "Sensor type LIDAR not supported yet. Try using a GPU LIDAR
+     instead."，传感器实体压根不会被创建，/scan 话题永远不会发布。
+     gpu_lidar 依赖 gz-rendering（Ogre2），这台机器只有纯软件的 llvmpipe
+     渲染（新硬件跟 Ubuntu 显卡驱动不兼容，只能 acpi=off 启动，去掉这个
+     内核参数会黑屏进不了系统，这是无法修复的硬件限制），Ogre2 在
+     llvmpipe 上初始化会比较慢，但仍然能跑，只是要有耐心等它初始化完，
+     不要在传感器还没就绪时就以为卡死而 Ctrl+C 打断。真正拖慢这台机器的
+     主要是 gz_gui 那个独立 3D 渲染窗口，已经在 gazebo.launch.py 里默认
+     关掉了；gpu_lidar 本身没有替代方案，这是当前 Gazebo 版本唯一支持的
+     雷达类型。 -->
 <gazebo reference="laser_link">
   <sensor type="gpu_lidar" name="laser">
     <pose>0 0 0 0 0 0</pose>

@@ -110,6 +110,10 @@ def generate_launch_description():
         event_handler=OnProcessStart(
             target_action=gz_server,
             on_start=[
+                # gz_gui 默认不开：这是独立的 3D 渲染窗口（ogre2），和 headless
+                # server 的传感器渲染分开吃资源，配置低的机器建图/跑导航时容易卡。
+                # 建图/调试不需要看 Gazebo 里的 3D 画面，RViz 已经够用；
+                # 真要用 Gazebo GUI（比如手动拖障碍物）就把下面这行取消注释。
                 # gz_gui,
                 robot_state_publisher_node,
                 bridge_node,

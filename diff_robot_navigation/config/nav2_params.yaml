@@ -1,0 +1,199 @@
+# nav2_params.yaml
+# =================
+# Nav2 stock 组件的参数：AMCL 定位、global/local costmap、controller_server(DWB 局部避障)、
+# bt_navigator。全局路径规划**不用**这里配置 —— 我们用 diff_robot_navigation/
+# global_planner_node.py 这个普通 rclpy 节点顶替了 nav2_planner_server（同名同 action
+# compute_path_to_pose），所以下面故意没有 planner_server 段，也不需要装 nav2_planner。
+#
+# 重要的集成细节（容易踩坑，记录一下）：
+#   我们的 planner_server 节点是普通 rclpy.Node，不是 rclcpp_lifecycle 节点，
+#   不支持 nav2_lifecycle_manager 的 configure/activate 状态机管理，
+#   所以 lifecycle_manager 的 node_names 列表里**不能**包含 planner_server，
+#   它作为一个普通节点单独 launch、启动即可用（只要 /map 已经发布出来）。
+#   lifecycle_manager 只托管标准 Nav2 C++ 节点：map_server / amcl / controller_server / bt_navigator。
+#
+# 参考基准：ros-humble-nav2-bringup 自带的 params.yaml（`ros2 pkg prefix nav2_bringup`
+# 下能找到），本文件在其基础上做了针对本机器人（差速驱动、轮距0.30m、半径~0.18m
+# 外接圆）的裁剪和调参，落地前建议对照一下自己装的 Nav2 版本的默认值。
+
+amcl:
+  ros__parameters:
+    use_sim_time: true
+    alpha1: 0.2
+    alpha2: 0.2
+    alpha3: 0.2
+    alpha4: 0.2
+    alpha5: 0.2
+    base_frame_id: "base_link"
+    odom_frame_id: "odom"
+    global_frame_id: "map"
+    scan_topic: scan
+    laser_max_range: 10.0
+    laser_min_range: 0.1
+    max_particles: 2000
+    min_particles: 500
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+    set_initial_pose: true
+    initial_pose: {x: 0.0, y: 0.0, z: 0.0, yaw: 0.0}
+    transform_tolerance: 0.5
+    update_min_a: 0.15
+    update_min_d: 0.1
+
+controller_server:
+  ros__parameters:
+    use_sim_time: true
+    controller_frequency: 20.0
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.5
+    min_theta_velocity_threshold: 0.001
+    progress_checker_plugin: "progress_checker"
+    goal_checker_plugins: ["goal_checker"]
+    controller_plugins: ["FollowPath"]
+
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.5
+      movement_time_allowance: 10.0
+    goal_checker:
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.15
+      yaw_goal_tolerance: 0.25
+      stateful: true
+
+    # ---- DWB 局部规划器（Nav2 里的 "DWA"），对应需求2 "结合 Nav2/DWA 局部规划器
+    #      完成实时避障"。全局路径来自我们自己的 A*（/plan），DWB 在其基础上
+    #      结合 local_costmap（实时激光扫描）做逐步前瞻式避障和局部重规划。
+    FollowPath:
+      plugin: "dwb_core::DWBLocalPlanner"
+      debug_trajectory_details: true
+      min_vel_x: 0.0
+      min_vel_y: 0.0
+      max_vel_x: 0.5          # 与 pure_pursuit/mpc 的 cruise_linear_vel 量级保持一致
+      max_vel_y: 0.0          # 差速驱动没有侧向自由度
+      max_vel_theta: 1.8
+      min_speed_xy: 0.0
+      max_speed_xy: 0.5
+      min_speed_theta: 0.0
+      acc_lim_x: 1.0
+      acc_lim_y: 0.0
+      acc_lim_theta: 2.5
+      decel_lim_x: -1.0
+      decel_lim_y: 0.0
+      decel_lim_theta: -2.5
+      vx_samples: 20
+      vy_samples: 1
+      vtheta_samples: 20
+      sim_time: 1.5           # 局部轨迹前瞻时长：越大越"有远见"但计算量越大
+      linear_granularity: 0.05
+      angular_granularity: 0.025
+      transform_tolerance: 0.2
+      xy_goal_tolerance: 0.15
+      trans_stopped_velocity: 0.25
+      short_circuit_trajectory_evaluation: true
+      stateful: true
+      critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign",
+                "PathAlign", "PathDist", "GoalDist"]
+      BaseObstacle.scale: 0.02
+      PathAlign.scale: 32.0
+      GoalAlign.scale: 24.0
+      PathAlign.forward_point_distance: 0.1
+      GoalAlign.forward_point_distance: 0.1
+      PathDist.scale: 32.0
+      GoalDist.scale: 24.0
+      RotateToGoal.scale: 32.0
+      RotateToGoal.slowing_factor: 5.0
+      RotateToGoal.lookahead_time: -1.0
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      global_frame: odom
+      robot_base_frame: base_link
+      use_sim_time: true
+      rolling_window: true
+      width: 3
+      height: 3
+      resolution: 0.05
+      robot_radius: 0.18        # 略大于底盘对角半宽(0.15/0.21m级别)，留安全裕度
+      plugins: ["obstacle_layer", "inflation_layer"]
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: true
+          marking: true
+          data_type: "LaserScan"
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.4
+      always_send_full_costmap: true
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      update_frequency: 1.0
+      publish_frequency: 1.0
+      global_frame: map
+      robot_base_frame: base_link
+      use_sim_time: true
+      robot_radius: 0.18
+      resolution: 0.05
+      track_unknown_space: true
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: true
+          marking: true
+          data_type: "LaserScan"
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.4
+      always_send_full_costmap: true
+
+map_server:
+  ros__parameters:
+    use_sim_time: true
+    yaml_filename: ""   # 由 launch 参数 map 传入，见 launch/navigation.launch.py
+
+bt_navigator:
+  ros__parameters:
+    use_sim_time: true
+    global_frame: map
+    robot_base_frame: base_link
+    odom_topic: /odometry/filtered
+    bt_loop_duration: 10
+    default_server_timeout: 20
+    # 不覆盖 default_nav_to_pose_bt_xml / plugin_lib_names：直接用 nav2_bt_navigator
+    # 包里自带的默认行为树 (navigate_to_pose_w_replanning_and_recovery.xml) 和默认
+    # BT 节点插件列表即可，行为树里的 "ComputePathToPose" 节点调用的 action
+    # 正是我们 global_planner_node.py 提供的那个（同名同类型），对 BT 完全透明。
+
+# 注意：这个顶层 key 必须跟 navigation.launch.py 里实际起的节点名一致
+# （name='lifecycle_manager_navigation'），不能就叫 lifecycle_manager——
+# ROS2 参数 yaml 是按节点名分段的，key 对不上节点名的话，这段参数根本不会
+# 被应用到那个节点上，等于该节点什么参数都没收到。之前就是因为这里写成了
+# `lifecycle_manager:`，导致 lifecycle_manager_navigation 节点拿不到
+# node_names，get_parameter 时抛 ParameterUninitializedException 直接崩溃
+# （SIGABRT），Nav2 的 map_server/amcl/controller_server/bt_navigator
+# 永远停在 unconfigured，从未被激活。
+lifecycle_manager_navigation:
+  ros__parameters:
+    use_sim_time: true
+    autostart: true
+    # 注意：不包含 planner_server —— 见文件顶部说明
+    node_names: ["map_server", "amcl", "controller_server", "bt_navigator"]

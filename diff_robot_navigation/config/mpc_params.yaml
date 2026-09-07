@@ -1,0 +1,30 @@
+mpc_controller:
+  ros__parameters:
+    use_sim_time: true
+    odom_topic: /odometry/filtered
+    control_rate_hz: 10.0   # 和 dt 保持一致，MPC 每个控制周期都要重新求解一次 QP
+
+    # ---- 预测步数 horizon：MPC 最核心的调参项 ----
+    # scripts/tune_and_compare.py 的 horizon 扫描（docs/tuning_log.md）显示
+    # N=12~16 时 RMSE 已基本收敛，再增大边际收益很小、但求解耗时线性增长，
+    # N=16 时平均求解 ~2.7ms／最坏 ~7ms，仍在 15ms 预算内，留了安全裕度。
+    horizon: 16
+    dt: 0.1
+
+    cruise_linear_vel: 0.5
+    max_linear_vel: 1.0
+    max_angular_vel: 1.8
+    goal_tolerance: 0.10
+    decel_radius: 0.6
+
+    # 代价函数权重：位置误差 q_xy、航向误差 q_theta 权重越大跟踪越贴线；
+    # r_v/r_omega 是控制量本身的权重，r_dv/r_domega 是控制量变化率的权重
+    # —— 这两个是"平稳无振荡"的关键调参项，调大能显著压低角速度抖动，
+    #   但会让机器人对突然的路径转折反应变慢。
+    q_xy: 8.0
+    q_theta: 2.0
+    r_v: 0.8
+    r_omega: 0.6
+    r_dv: 1.2
+    r_domega: 1.4
+    max_iters: 60
