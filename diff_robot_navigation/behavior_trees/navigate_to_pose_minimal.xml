@@ -1,0 +1,44 @@
+<!--
+navigate_to_pose_minimal.xml
+=============================
+2026-09-07 新增（会话更新⑩），2026-09-07 再次修正（会话更新⑪）：
+自定义最小化行为树，替换 nav2_bt_navigator 自带的默认树
+navigate_to_pose_w_replanning_and_recovery.xml。
+
+背景：Nav2 自带的默认行为树在"恢复"分支里用了 ClearEntireCostmap 这个
+BT 节点，要连 "global_costmap/clear_entirely_global_costmap" 这个
+service——但我们的 global_planner_node.py 是普通 rclpy 节点直接读 /map
+做 A* 规划，没有像 stock nav2_planner_server 那样内置一个 Costmap2DROS
+（"global_costmap"），这个 service 永远不存在，bt_navigator 一加载默认树
+就在 activate 阶段报错退出（会话更新⑨ Bug 5）。
+
+⑩ 第一版修复时，误以为 nav2_behavior_tree 里的 <Wait> 节点是纯本地的
+"睡一下"逻辑、不需要任何外部依赖，用 RecoveryNode+Wait 当失败重试的
+"恢复动作"——结果实测发现 <Wait> 其实跟 <Spin>/<BackUp>/<ClearEntireCostmap>
+一样，是要连一个真正的 ROS2 action server（名字叫"wait"，正常由 Nav2 的
+recoveries_server/behavior_server 提供）的 BtActionNode，我们同样没有跑
+这个 server，所以换汤不换药，同样的"某个恢复类节点连不上外部 server"
+的错误只是从 ClearEntireCostmap 换成了 Wait 而已（"wait" action server
+not available after waiting for 1.00s）。
+
+⑪ 正确的修复：彻底不用任何 Nav2 的"恢复类"叶子节点（Wait/Spin/BackUp/
+ClearEntireCostmap 等——这些全部是需要外部 action/service server 的
+BtActionNode），只保留两个我们真正有对应服务在跑的叶子节点：
+ComputePathToPose（对应 global_planner_node.py 提供的 action）和
+FollowPath（对应 controller_server 提供的 action）。PipelineSequence/
+RateController是 BehaviorTree.CPP/nav2_behavior_tree 的纯本地控制类
+节点（不连任何外部 server，只是控制 BT 的执行节奏），可以放心用。
+之后如果真的需要失败重试/避障恢复行为，需要先补一个跑 recoveries_server
+（或叫 behavior_server，具体包名以实际 ROS2 发行版为准）的节点，
+再把对应的恢复叶子节点加回来。
+-->
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <PipelineSequence name="NavigateWithReplanning">
+      <RateController hz="1.0">
+        <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+      </RateController>
+      <FollowPath path="{path}" controller_id="FollowPath"/>
+    </PipelineSequence>
+  </BehaviorTree>
+</root>

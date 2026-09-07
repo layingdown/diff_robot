@@ -16,6 +16,10 @@ setup(
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
         (os.path.join('share', package_name, 'rviz'), glob('rviz/*.rviz')),
         (os.path.join('share', package_name, 'maps'), glob('maps/*')),
+        # 2026-09-07 新增：自定义的最小化行为树 XML（不依赖 global_costmap 清空
+        # service，见 navigate_to_pose_minimal.xml 文件头注释），navigation.launch.py
+        # 里通过 bt_navigator 的 default_nav_to_pose_bt_xml 参数指向这里安装后的路径。
+        (os.path.join('share', package_name, 'behavior_trees'), glob('behavior_trees/*.xml')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

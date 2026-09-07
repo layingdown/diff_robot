@@ -144,20 +144,69 @@ class PlannerError(RuntimeError):
     """A* 规划失败（起点/终点非法、或搜索空间内不存在可行路径）。"""
 
 
+def _nearest_free_cell(
+    grid: "GridMap", cell: Cell, max_radius: int, allow_unknown: bool = True
+) -> Optional[Cell]:
+    """以 cell 为中心，一圈一圈往外找最近的一个"可通行"格子，找不到返回 None。
+
+    用于起点恰好落在孤立噪声像素/极窄障碍物上时的兜底（见⑯的说明）：只按
+    切比雪夫距离一圈一圈扩大搜索范围（对栅格来说足够均匀，没必要用更贵的
+    欧氏距离扩圈算法），同一圈内再按真实欧氏距离挑最近的一个，尽量让"贴回
+    最近的自由格子"这个动作本身产生的偏移最小。
+    """
+    if grid.is_free(cell, allow_unknown):
+        return cell
+    r0, c0 = cell
+    for radius in range(1, max_radius + 1):
+        candidates = []
+        for dr in range(-radius, radius + 1):
+            for dc in range(-radius, radius + 1):
+                if max(abs(dr), abs(dc)) != radius:
+                    continue  # 只看这一圈的外壳，内圈上一轮已经查过了
+                nc = (r0 + dr, c0 + dc)
+                if grid.in_bounds(nc) and grid.is_free(nc, allow_unknown):
+                    candidates.append(nc)
+        if candidates:
+            candidates.sort(key=lambda c: (c[0] - r0) ** 2 + (c[1] - c0) ** 2)
+            return candidates[0]
+    return None
+
+
 def a_star_search(
     grid: GridMap,
     start: Cell,
     goal: Cell,
     allow_unknown: bool = False,
     max_expansions: int = 400_000,
+    start_snap_radius_cells: int = 6,
 ) -> List[Cell]:
     """标准 8 邻域 A*，欧氏距离启发式（可采纳、一致），返回栅格坐标路径（含起终点）。"""
     if not grid.in_bounds(start):
         raise PlannerError(f"起点越界: {start}")
     if not grid.in_bounds(goal):
         raise PlannerError(f"终点越界: {goal}")
-    if not grid.is_free(start, allow_unknown):
-        raise PlannerError(f"起点位于障碍物/未知区域: {start}")
+    # 2026-09-07 修复（会话更新⑮，⑯里发现诊断有误并修正）：起点永远来自机器人
+    # 当下的真实 TF 位置——它"现在就站在这里"是既成事实。⑮版最初以为问题是
+    # "SLAM 地图这一格没探索到"（occupancy 未知），后来实测比对地图像素发现
+    # 判断错了：两次真实触发的失败格子其实都是 occupancy 明确 >50 的"障碍物"，
+    # 而且都是嵌在大片自由空间中的孤立小块（3~6个格子的细线/斜线），跟本项目
+    # 早就记录过的"SLAM扫描匹配噪声在地图上留下细斜线痕迹"（见会话更新⑥）
+    # 完全对得上——这些不是真实世界里存在的墙，只是建图阶段的噪声，Gazebo
+    # 里机器人从那正常穿过去毫无阻碍，但 A* 严格按地图判断会误以为撞墙。
+    # 由于用户已经明确表示不想再花时间修SLAM建图质量本身，这里改成从算法
+    # 侧兜底：起点这一格如果确实是"障碍物"，不要立刻整体报错，先在起点周围
+    # 一小圈（start_snap_radius_cells，默认6格≈0.3米，小于机器人自身尺寸，
+    # 不会把起点挪到明显不合理的位置）里找最近的自由格子，把起点贴过去继续
+    # 规划；这一小圈里如果确实一个自由格子都找不到（说明起点周围是一片连续
+    # 的真实障碍区，不是孤立噪声点），才真正报错——这种情况继续报错是对的、
+    # 不应该被这个兜底掩盖掉。
+    start_allow_unknown = True
+    if not grid.is_free(start, allow_unknown=start_allow_unknown):
+        snapped = _nearest_free_cell(
+            grid, start, start_snap_radius_cells, allow_unknown=start_allow_unknown)
+        if snapped is None:
+            raise PlannerError(f"起点位于障碍物，且周围{start_snap_radius_cells}格内找不到自由格子: {start}")
+        start = snapped
     if not grid.is_free(goal, allow_unknown):
         raise PlannerError(f"终点位于障碍物/未知区域: {goal}")
 

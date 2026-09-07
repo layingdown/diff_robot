@@ -29,6 +29,12 @@ Panels:
     Name: Time
     SyncMode: 0
     SyncSource: LaserScan
+  # 2026-09-07 新增（会话更新⑭ Bug 9）：加 Nav2 官方的 "Navigation 2" 面板。
+  # 光有下面 Tools 里的 GoalTool 按钮还不够——GoalTool 画完目标点只是把坐标
+  # 存进一个全局的 GoalUpdater，真正调用 NavigateToPose action 发给
+  # bt_navigator 的是这个面板本身。两者必须同时存在，缺一个都不会真的动。
+  - Class: nav2_rviz_plugins/Navigation 2
+    Name: Navigation 2
 Visualization Manager:
   Class: ""
   Displays:
@@ -182,6 +188,15 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /goal_pose
+    # 2026-09-07 新增（会话更新⑭ Bug 9）：上面这个 rviz_default_plugins/SetGoal
+    # 就是工具栏里原来那个 "2D Nav Goal" 按钮——它只是把画的目标点发布成一条
+    # PoseStamped 消息到 /goal_pose 话题，本身不连任何 action，Nav2 的
+    # bt_navigator 也不订阅这个话题，所以点了完全没反应，之前几轮验证卡在
+    # 这里就是这个原因。真正能触发导航的是下面这个 nav2_rviz_plugins 自带的
+    # "Nav2 Goal" 工具——画完目标点后要配合上面 Panels 里新加的 "Navigation 2"
+    # 面板，由面板发起真正的 NavigateToPose action 调用。以后测试导航要点
+    # 工具栏里的 "Nav2 Goal"，不要点 "2D Nav Goal"（两个按钮长得很像，容易点错）。
+    - Class: nav2_rviz_plugins/GoalTool
     - Class: rviz_default_plugins/PublishPoint
       Single click: true
       Topic:
