@@ -1,6 +1,6 @@
 # 调参记录 (Tuning Log)
 
-本文件记录三类实测数据，全部来自可重复运行的脚本，不是手写的估计值：
+本文件记录三类实测数据，来自可重复运行的脚本：
 
 1. **A\* 全局规划**：`diff_robot_navigation/scripts/visualize_astar_demo.py` —— 多组动态起终点的路径质量（长度、最近障碍物间隙、求解耗时）。
 2. **Pure Pursuit / MPC 参数扫描 + 对比**：`diff_robot_navigation/scripts/tune_and_compare.py` —— 前视距离、MPC 预测步数扫描，以及两者在不同巡航速度下的正面对比。
