@@ -125,7 +125,7 @@ g++ -O2 -std=c++17 -I include src/astar_core.cpp benchmark/benchmark_main.cpp -o
 结论：
 - 在项目实际使用的分辨率（0.05m/格，和 `diff_robot_description/config/slam_toolbox_params.yaml` 里的 `resolution: 0.05` 保持一致）下，C++ 版本单次求解 **均值 1.88ms、最坏 2.59ms**，稳稳落在 "ms 级" / 15ms 预算以内，可以支持较高频率的重规划；Python 版本均值 45ms、最坏能到 249ms，如果要在 controller_server 频率（20Hz，即 50ms 一个周期）下做纯 Python 在线重规划会比较吃紧，更适合作为"离线验证 + 一次性全局规划"使用（也正是 `global_planner_node.py` 目前的用法：收到一次目标算一次，不是每个控制周期都重算）。
 - 加速比随网格变大略微下降（24×→16×），这是因为 C++ 版本里膨胀代价场用的多源 BFS 本身是 `O(H×W)`，网格边长翻倍、面积变 4 倍，这部分开销占比会上升；Python 版因为用了 `scipy.ndimage.distance_transform_edt`（C 实现），这部分本来就不慢，两边的"其他部分"（A* 搜索本身，Python 逐节点用纯解释执行）才是耗时差距的主要来源。
-- 两边独立实现还顺带抓出了一个真实 bug（见第1节最后一段：对角步贴墙角的碰撞检测漏洞），这比单纯"写两份代码证明会两种语言"更有实际工程价值。
+- 两边独立实现还顺带抓出了一个真实 bug（见第1节最后一段：对角步贴墙角的碰撞检测漏洞）。
 
 ---
 
