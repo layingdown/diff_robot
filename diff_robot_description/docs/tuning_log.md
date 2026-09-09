@@ -30,7 +30,7 @@ python3 scripts/visualize_astar_demo.py --out docs/figures/astar_demo.png --dyna
 | 5 | 随机起终点 | 4.321 | 4.300 | 1.65 | 0.250 |
 
 结论：
-- 平滑后路径长度始终 ≤ 原始折线长度（视线裁剪 + 样条走的是"近道"，不是绕远路），且**所有采样点逐段碰撞检测通过**（`test/test_astar.py` 里 `test_maze_grid_collision_free`、`test_smoothing_does_not_lengthen_much` 覆盖了这个断言，不是靠肉眼看图）。
+- 平滑后路径长度始终 ≤ 原始折线长度（视线裁剪 + 样条走的是"近道"，不是绕远路），且**所有采样点逐段碰撞检测通过**（`test/test_astar.py` 里 `test_maze_grid_collision_free`、`test_smoothing_does_not_lengthen_much` 得到判断）。
 - 到最近障碍物的间隙全部 > 0，最小 0.071m——这是膨胀半径 `inflation_radius_m=0.25` 和门框宽度共同决定的，如果机器人实际外接圆半径接近这个数字，建议把地图门宽做大或者把 `inflation_radius_m` 调小，否则规划出来的路径会贴着门框走，对定位误差的容忍度较低。
 - 纯 Python 单次求解耗时波动较大（1.65ms ~ 187ms，和起终点距离、需要展开的搜索节点数强相关），这正是需求4里要用 C++ 重写核心模块的动机——见第 3 节的直接对比。
 
